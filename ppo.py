@@ -78,6 +78,7 @@ class A2C(Model):
 if __name__ == "__main__":
     
     env = gym.make("LunarLanderContinuous-v2")
+    print("Environment built.")
     
     model_kwargs = {"layers": [32,32,32], "action_dim": env.action_space.shape[0]}
 
@@ -91,10 +92,10 @@ if __name__ == "__main__":
     LEARNING_RATE       = 1e-4
     NUM_PARALLEL        = 8
     CLIP_PARAM          = 0.2
-    SAMPLED_BATCHES     = 12
+    SAMPLED_BATCHES     = 3
     PPO_STEPS           = 30
     TARGET_REWARD       = 2500
-    OPTIM_BATCH_SIZE    = 8
+    OPTIM_BATCH_SIZE    = 5
 
 
 
@@ -126,23 +127,28 @@ if __name__ == "__main__":
         path=saving_path, saving_after=5, aggregator_keys=["loss", "reward", "time"]
     )
 
+    print("Aggregator built.")
     # get initial agent
     agent = manager.get_agent()
 
 
     rewards = []
 
-
+    print("Starting training.")
+    print()
     for e in range(PPO_STEPS):
 
-        print("\nStarting Epoch " + str(e+1))
+        print("\nStarting Epoch " + str(e+1) +":")
+        print()
 
 
-
+        print("Sampling:IN PROCESS...")
         sample_dict = manager.sample(
             sample_size = SAMPLED_BATCHES*OPTIM_BATCH_SIZE,
             from_buffer = False
             )
+        print("Sampling: DONE")
+        print("Length of sample: " , len(sample_dict))
         
         # Add value of last 'new_state'
         sample_dict['value_estimate'].append(agent.v(np.expand_dims(sample_dict['state_new'][-1],0)))
@@ -158,6 +164,7 @@ if __name__ == "__main__":
         # Center advantage around zero
         sample_dict['advantage'] -= np.mean(sample_dict['advantage'])
 
+        print("GAE: DONE")
         
         
         
@@ -170,13 +177,14 @@ if __name__ == "__main__":
         samples = dict_to_dict_of_datasets(sample_dict, batch_size=OPTIM_BATCH_SIZE)
 
 
-        print("Optimizing on sample")
+        print("Start optimizing on sample:")
         
         actor_losses = []
         critic_losses = []
         losses = []
-        
+        elementNumber = 0
         for state_batch, action_batch, advantage_batch, returns_batch, log_prob_batch in zip(samples['state'], samples['action'], samples['advantage'], samples['monte_carlo'], samples['log_prob']):
+            print("Taking batch ", elementNumber)
             with tf.GradientTape() as tape:                
 
             
@@ -199,6 +207,7 @@ if __name__ == "__main__":
             
             
                 gradients = tape.gradient(total_loss, agent.model.trainable_variables)
+                print("Information collected")
 
             optimizer.apply_gradients(zip(gradients, agent.model.trainable_variables))
             print("GRADIENTS APPLIED")
@@ -211,32 +220,36 @@ if __name__ == "__main__":
             manager.set_agent(agent.get_weights())
 
 
-            if (e+1) % 5 == 0:
-                print('TESTING')
-                steps, current_rewards = manager.test(
-                    max_steps=100,
-                    test_episodes=10,
-                    render=False,
-                    evaluation_measure="time_and_reward",
-                    )
+            # if (e+1) % 5 == 0:
+            print('TESTING...')
+            steps, current_rewards = manager.test(
+                max_steps=100,
+                test_episodes=10,
+                render=False,
+                evaluation_measure="time_and_reward",
+                )
+            print("DONE")
 
-            # manager.test(
-            #     max_steps=1000,
-            #     test_episodes=1,
-            #     render=True
-            #     )
-            
-            # Update aggregator
+        # manager.test(
+        #     max_steps=1000,
+        #     test_episodes=1,
+        #     render=True
+        #     )
+        
+        # Update aggregator
             manager.update_aggregator(loss=losses, reward=current_rewards, time=steps)
             
             # Collect all rewards
             rewards.extend(current_rewards)
-            # Average reward over last 100 episodes
+        # Average reward over last 100 episodes
             avg_reward = sum(rewards[-100:])/min(len(rewards),100)
 
+            elementNumber += 1
+
+            print("OUTCOME:")
             # Print progress
             print(
-                f"Epoch ::: {e+1}  Loss ::: {np.mean(losses)}   avg_current_reward ::: {np.mean(current_rewards)}   avg_reward ::: {avg_reward}   avg_timesteps ::: {np.mean(steps)}"
+                f"      Epoch ::: {e+1}  Loss ::: {np.mean(losses)}   avg_current_reward ::: {np.mean(current_rewards)}   avg_reward ::: {avg_reward}   avg_timesteps ::: {np.mean(steps)}"
             )
 
             if avg_reward > env.spec.reward_threshold:
@@ -244,8 +257,10 @@ if __name__ == "__main__":
                 # Save model
                 manager.save_model(saving_path, e, model_name='LunarLanderContinuous')
                 break
-
-        print("Testing optimized agent")
+            print("-------------------------------------------------------------------------------------------------------------------------------------------------------")
+        
+        print("Finally finished with optimization.")
+        print("Testing optimized agent...")
         manager.test(
             max_steps=100,
             test_episodes=10,
@@ -253,3 +268,4 @@ if __name__ == "__main__":
             do_print=True,
             evaluation_measure="time_and_reward",
         )
+        print("END")
