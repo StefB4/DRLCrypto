@@ -136,6 +136,7 @@ if __name__ == "__main__":
 
     print("Starting training.")
     print()
+    
     for e in range(PPO_STEPS):
 
         print("\nStarting Epoch " + str(e+1) +":")
@@ -220,52 +221,52 @@ if __name__ == "__main__":
             manager.set_agent(agent.get_weights())
 
 
-            # if (e+1) % 5 == 0:
-            print('TESTING...')
-            steps, current_rewards = manager.test(
-                max_steps=100,
-                test_episodes=10,
-                render=False,
-                evaluation_measure="time_and_reward",
-                )
-            print("DONE")
+        # if (e+1) % 5 == 0:
+        print('TESTING...')
+        steps, current_rewards = manager.test(
+            max_steps=100,
+            test_episodes=10,
+            render=False,
+            evaluation_measure="time_and_reward",
+            )
+        print("DONE")
 
         # manager.test(
         #     max_steps=1000,
         #     test_episodes=1,
         #     render=True
         #     )
-        
+    
         # Update aggregator
-            manager.update_aggregator(loss=losses, reward=current_rewards, time=steps)
-            
-            # Collect all rewards
-            rewards.extend(current_rewards)
-        # Average reward over last 100 episodes
-            avg_reward = sum(rewards[-100:])/min(len(rewards),100)
-
-            elementNumber += 1
-
-            print("OUTCOME:")
-            # Print progress
-            print(
-                f"      Epoch ::: {e+1}  Loss ::: {np.mean(losses)}   avg_current_reward ::: {np.mean(current_rewards)}   avg_reward ::: {avg_reward}   avg_timesteps ::: {np.mean(steps)}"
-            )
-
-            if avg_reward > env.spec.reward_threshold:
-                print(f'\n\nEnvironment solved after {e+1} episodes!')
-                # Save model
-                manager.save_model(saving_path, e, model_name='LunarLanderContinuous')
-                break
-            print("-------------------------------------------------------------------------------------------------------------------------------------------------------")
+        manager.update_aggregator(loss=losses, reward=current_rewards, time=steps)
         
-        print("Finally finished with optimization.")
-        print("Testing optimized agent...")
-        manager.test(
-            max_steps=100,
-            test_episodes=10,
-            render=True,
-            do_print=True,
-            evaluation_measure="time_and_reward",
+        # Collect all rewards
+        rewards.extend(current_rewards)
+        # Average reward over last 100 episodes
+        avg_reward = sum(rewards[-100:])/min(len(rewards),100)
+
+        elementNumber += 1
+
+        print("OUTCOME:")
+        # Print progress
+        print(
+            f"      Epoch ::: {e+1}  Loss ::: {np.mean(losses)}   avg_current_reward ::: {np.mean(current_rewards)}   avg_reward ::: {avg_reward}   avg_timesteps ::: {np.mean(steps)}"
         )
-        print("END")
+
+        if avg_reward > env.spec.reward_threshold:
+            print(f'\n\nEnvironment solved after {e+1} episodes!')
+            # Save model
+            manager.save_model(saving_path, e, model_name='LunarLanderContinuous')
+            break
+        print("-------------------------------------------------------------------------------------------------------------------------------------------------------")
+        
+    print("Finished with optimization.")
+    print("Testing optimized agent...")
+    manager.test(
+        max_steps=100,
+        test_episodes=10,
+        render=True,
+        do_print=True,
+        evaluation_measure="time_and_reward",
+    )
+    print("END")
