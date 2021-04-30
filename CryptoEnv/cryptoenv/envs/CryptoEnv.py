@@ -18,7 +18,7 @@ from IPython.display import clear_output, display
 # cut action von [-1,1]? necessary? 
 # flatten observation? sonst läuft stable baseline nicht 
 
-PROCESSEDDATA = os.path.dirname(os.path.abspath(__file__)) + "/../processeddata"
+PROCESSEDDATA = os.path.dirname(os.path.abspath(__file__)) + "/../../../processeddata"
 
 INITIAL_BALANCE = 2000
 # for normalization

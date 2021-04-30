@@ -1,4 +1,5 @@
 import logging, os
+from cryptoenv import CryptoEnv
 
 logging.disable(logging.WARNING)
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
@@ -12,6 +13,8 @@ from really.utils import (
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import Model
+
+#from crypto-env.crypto_env import CryptoEnv
 
 class A2C(Model):
     def __init__(self, layers, action_dim):
@@ -77,14 +80,16 @@ class A2C(Model):
 
 if __name__ == "__main__":
     
-    env = gym.make("LunarLanderContinuous-v2")
+    #env = gym.make("LunarLanderContinuous-v2")
+    env = gym.make("cryptoenv-v0")
+    
     print("Environment built.")
     
     model_kwargs = {"layers": [32,32,32], "action_dim": env.action_space.shape[0]}
 
 
 
-    ENV_ID              = "LunarLanderContinuous-v2"
+    ENV_ID              = "cryptoenv-v0"
     TARGET_REWARD       = 2500
     
     CRITIC_DISCOUNT     = 0.5
@@ -299,7 +304,7 @@ if __name__ == "__main__":
               
             
 
-        if avg_reward > env.spec.reward_threshold:
+        if False: # avg_reward > env.spec.reward_threshold:
             print(f'\n\nEnvironment solved after {e+1} episodes!')
             # Save model
             manager.save_model(saving_path, e, model_name='LunarLanderContinuous')
