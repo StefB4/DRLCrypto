@@ -70,7 +70,7 @@ class A2C(Model):
         output["mu"] = tf.squeeze(self.readout_mu(mu_pred))
         output["sigma"] = tf.squeeze(tf.abs(self.readout_sigma(sigma_pred)))
         # Critic
-        output["value_estimate"] = tf.squeeze(self.readout_value(value_pred))
+        output["value_estimate"] = self.readout_value(value_pred)
         return output
     
   
@@ -84,45 +84,51 @@ if __name__ == "__main__":
 
 
 
+    ENV_ID              = "LunarLanderContinuous-v2"
+    TARGET_REWARD       = 2500
+    
     CRITIC_DISCOUNT     = 0.5
     ENTROPY_BETA        = 0.001
-    ENV_ID              = "LunarLanderContinuous-v2"
     GAMMA               = 0.99
     GAE_LAMBDA          = 0.95
     LEARNING_RATE       = 1e-4
-    NUM_PARALLEL        = 8
     CLIP_PARAM          = 0.2
-    SAMPLED_BATCHES     = 3
-    PPO_STEPS           = 30
-    TARGET_REWARD       = 2500
-    OPTIM_BATCH_SIZE    = 5
+    
+    NUM_PARALLEL        = 4
+    EPOCHS              = 3
+    ELEMENTS_IN_BATCH   = 10
+    NUM_BATCHES         = 4
+    NUM_RUNNER_STEPS    = 10
+    NUM_RUNNER_EPISODES = 1
 
 
 
     kwargs = {
         "model": A2C,
         "model_kwargs": model_kwargs,
+        "is_tf": True,
         "environment": ENV_ID,
         "num_parallel": NUM_PARALLEL,
-        "total_steps": 200, # 100
+        "total_steps": 200, # 100 Only for ER, no necessity in PPO
         "action_sampling_type": "continuous_normal_diagonal",
-        "num_episodes": 20, # per runner
+        # "num_episodes": NUM_RUNNER_EPISODES,
+        "num_steps": NUM_RUNNER_STEPS,
         "returns": ['value_estimate', 'log_prob', 'monte_carlo'],
     }
 
-    mse_loss = tf.keras.losses.MeanSquaredError()
-    optimizer = tf.keras.optimizers.Adam(LEARNING_RATE)
     
     
     
     ray.init(log_to_driver=False)
     manager = SampleManager(**kwargs)
     
-    
+
+    mse_loss = tf.keras.losses.MeanSquaredError()
+    optimizer = tf.keras.optimizers.Adam(LEARNING_RATE)
+
+
     saving_path = os.getcwd() + "/progress_ppo"
-
-
-    # initilize progress aggregator
+    # initialize progress aggregator
     manager.initialize_aggregator(
         path=saving_path, saving_after=5, aggregator_keys=["loss", "reward", "time"]
     )
@@ -137,23 +143,29 @@ if __name__ == "__main__":
     print("Starting training.")
     print()
     
-    for e in range(PPO_STEPS):
+    for e in range(EPOCHS):
 
         print("\nStarting Epoch " + str(e+1) +":")
         print()
 
 
-        print("Sampling:IN PROCESS...")
+        print("Sampling: INPROCESS")
         sample_dict = manager.sample(
-            sample_size = SAMPLED_BATCHES*OPTIM_BATCH_SIZE,
+            sample_size = NUM_BATCHES*ELEMENTS_IN_BATCH,
             from_buffer = False
             )
         print("Sampling: DONE")
-        print("Length of sample: " , len(sample_dict))
+        # print("Length of sample: " , len(sample_dict))
+        # print("Keys of sample :", sample_dict.keys())
+        # print("Sample Rewards before processing: ")
+        # print(sample_dict["action"])
         
         # Add value of last 'new_state'
+        #TODO: necessary??
         sample_dict['value_estimate'].append(agent.v(np.expand_dims(sample_dict['state_new'][-1],0)))
+        # print(len(sample_dict["value_estimate"]))s
         
+        print("GAE: INPROCESS")
         sample_dict['advantage'] = []
         gae = 0
         # Loop backwards through rewards
@@ -166,6 +178,7 @@ if __name__ == "__main__":
         sample_dict['advantage'] -= np.mean(sample_dict['advantage'])
 
         print("GAE: DONE")
+        print()
         
         
         
@@ -175,7 +188,8 @@ if __name__ == "__main__":
         sample_dict.pop('reward')
         sample_dict.pop('not_done')            
         # create and batch tf datasets
-        samples = dict_to_dict_of_datasets(sample_dict, batch_size=OPTIM_BATCH_SIZE)
+        samples = dict_to_dict_of_datasets(sample_dict, batch_size=ELEMENTS_IN_BATCH)
+        
 
 
         print("Start optimizing on sample:")
@@ -185,21 +199,25 @@ if __name__ == "__main__":
         losses = []
         elementNumber = 0
         for state_batch, action_batch, advantage_batch, returns_batch, log_prob_batch in zip(samples['state'], samples['action'], samples['advantage'], samples['monte_carlo'], samples['log_prob']):
-            print("Taking batch ", elementNumber)
+            # print("Processing batch:", elementNumber)
             with tf.GradientTape() as tape:                
-
             
-                old_log_prob = log_prob_batch
-                new_log_prob, entropy = agent.flowing_log_prob(state_batch,action_batch, True)
-                # print("old:", old_log_prob.dtype)
+                old_log_prob = tf.cast(log_prob_batch, dtype=tf.float32)
+                new_log_prob, entropy = agent.flowing_log_prob(state_batch, action_batch, True)
+                # print("old_log_prob: ", old_log_prob)
+                # print("new_log_prob: ", new_log_prob)
                 advantage_batch = tf.cast(advantage_batch, dtype=tf.float32)
-                # print("new:", old_log_prob.dtype)
                 ratio = tf.exp(new_log_prob - old_log_prob)
+                # print("Calculated ratio: ", ratio)
                 ppo1 = ratio * tf.expand_dims(advantage_batch,1)
+                # print("Advantage: ", tf.expand_dims(advantage_batch,1))
+                # print("PPO1", ppo1)
                 ppo2 = tf.clip_by_value(ratio, 1-CLIP_PARAM, 1+CLIP_PARAM) * tf.expand_dims(advantage_batch,1)
+                # print("PPO2", ppo2)
+                
                 actor_loss = -tf.reduce_mean(tf.minimum(ppo1,ppo2),0)
 
-                value_target = returns_batch
+                value_target = tf.cast(returns_batch, dtype=tf.float32)
                 value_pred = agent.v(state_batch)
                 critic_loss = mse_loss(value_target,value_pred)
     
@@ -208,10 +226,8 @@ if __name__ == "__main__":
             
             
                 gradients = tape.gradient(total_loss, agent.model.trainable_variables)
-                print("Information collected")
 
             optimizer.apply_gradients(zip(gradients, agent.model.trainable_variables))
-            print("GRADIENTS APPLIED")
             
             
             actor_losses.append(actor_loss)                
@@ -219,6 +235,8 @@ if __name__ == "__main__":
             losses.append(total_loss) 
             
             manager.set_agent(agent.get_weights())
+            elementNumber += 1
+
 
 
         # if (e+1) % 5 == 0:
@@ -245,13 +263,41 @@ if __name__ == "__main__":
         # Average reward over last 100 episodes
         avg_reward = sum(rewards[-100:])/min(len(rewards),100)
 
-        elementNumber += 1
 
         print("OUTCOME:")
         # Print progress
+        
+        try:
+            np.mean(losses)
+        except:
+            print("ISSUE with losses")
+            print("Losses: ", losses)        
+            
+            print()
+        try:
+            np.mean(current_rewards)
+        except:
+            print("ISSUE")
+            print("Current Rewards: ", current_rewards)
+        try:
+             avg_reward
+        except:
+            print("ISSUE")
+            
+            print("Average reward: ", avg_reward)
+        try:
+             np.mean(steps)
+        except:
+            print("ISSUE")
+            
+            print("Timesteps: ", steps)    
+            
         print(
-            f"      Epoch ::: {e+1}  Loss ::: {np.mean(losses)}   avg_current_reward ::: {np.mean(current_rewards)}   avg_reward ::: {avg_reward}   avg_timesteps ::: {np.mean(steps)}"
-        )
+            f"      Epoch ::: {e+1}   Loss ::: {np.mean(losses)} avg_current_reward ::: {np.mean(current_rewards)} avg_reward ::: {avg_reward} avg_timesteps ::: {np.mean(steps)}"
+            )
+               
+              
+            
 
         if avg_reward > env.spec.reward_threshold:
             print(f'\n\nEnvironment solved after {e+1} episodes!')

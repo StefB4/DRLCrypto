@@ -132,7 +132,10 @@ class Agent:
             output["action"] = action
 
             if return_log_prob:
-                output["log_probability"] = np.sum(norm.logpdf(action, mus, sigmas))
+                output["log_probability"] = norm.logpdf(action, mus, sigmas)
+                # np.sum(
+
+                # output["log_probability"] = self.flowing_log_prob(state, action, False)
 
         elif self.action_sampling_type == "discrete_policy":
             logits = network_out["policy"]

@@ -4,7 +4,6 @@ import os, logging
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 import numpy as np
-import gridworlds
 import gym
 import ray
 from really.utils import discount_cumsum
