@@ -1,5 +1,4 @@
 import logging, os
-from cryptoenv import CryptoEnv
 
 logging.disable(logging.WARNING)
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
@@ -14,7 +13,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import Model
 
-#from crypto-env.crypto_env import CryptoEnv
+from cryptoenv import CryptoEnv
 
 class A2C(Model):
     def __init__(self, layers, action_dim):
@@ -100,7 +99,7 @@ if __name__ == "__main__":
     CLIP_PARAM          = 0.2
     
     NUM_PARALLEL        = 4
-    EPOCHS              = 3
+    EPOCHS              = 6
     ELEMENTS_IN_BATCH   = 10
     NUM_BATCHES         = 4
     NUM_RUNNER_STEPS    = 10
