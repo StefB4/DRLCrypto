@@ -1,6 +1,0 @@
-setup.py
-cryptoenv.egg-info/PKG-INFO
-cryptoenv.egg-info/SOURCES.txt
-cryptoenv.egg-info/dependency_links.txt
-cryptoenv.egg-info/requires.txt
-cryptoenv.egg-info/top_level.txt
