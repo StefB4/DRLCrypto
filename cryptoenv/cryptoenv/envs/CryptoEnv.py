@@ -8,23 +8,14 @@ import os
 
 from IPython.display import clear_output, display
 
-# TODO
-
-# prices nicht skewen? 
-# non negative balance wie an agent feedbacken? 
-# wie sicherstellen, dass nur innerhalb des balance gekauft wird? 
-# starten immer mit random timestep oder von anfang an 
-# turbulence mit angepasster reward function 
-# cut action von [-1,1]? necessary? 
-# flatten observation? sonst läuft stable baseline nicht 
-
+# PROCESSEDDATA = "./../processeddata"
 PROCESSEDDATA = os.path.dirname(os.path.abspath(__file__)) + "/../../../processeddata"
 
 INITIAL_BALANCE = 2000
 # for normalization
 MAX_BALANCE = 1000000 
-MAX_PRICE = 10000 
-MAX_INDEX_VAL = 1000 
+MAX_PRICE = 5000 
+MAX_INDEX_VAL = 800 
 MAX_HOLDING_VAL = 10000  
 MAX_BUYING_AMOUNT = 10000 
 TRANSACTION_PERCENTAGE_COST = 0.001
@@ -39,26 +30,20 @@ class CryptoEnv(gym.Env):
         self.crypto_data_names = [] # ['ADA', 'ETH', 'XRP', 'XMR', 'LTC']
         self._read_processed_data()
         
-        # TODO 
-        self.action_space = spaces.Box(low=-1,high=+1,shape=(len(self.crypto_data_names),), dtype=np.float32)
+        self.action_space = spaces.Box(low=-1,high=+1,shape=(len(self.crypto_data_names),))
         # for each crypto (normalized from -1 to +1): negative: sell, 0: hold, positive: buy 
-        #self.action_space = spaces.Box(low=0.1,high=+0.9998,shape=(len(self.crypto_data_names),), dtype=np.float32)
         
-        # TODO 
-        obs_lows = [0] + [0] * len(self.crypto_data_names) * 2 + [-1] * len(self.crypto_data_names) + [0] * len(self.crypto_data_names) * 2 + [-1] * len(self.crypto_data_names)
-        obs_highs =[1] + [1] * len(self.crypto_data_names) * 6 
-        #self.observation_space = spaces.Box(low = np.array(obs_lows), high = np.array(obs_highs), dtype=np.float32)
-        self.observation_space = spaces.Box(low=-1, high=1, shape=((len(self.crypto_data_names) * 6 + 1),), dtype=np.float32)
-       
+        obs_lows = [0] + [0] * len(self.crypto_data_names) * 2 + [-1] * len(self.crypto_data_names) + [0] * len(self.crypto_data_names) + [-1] * len(self.crypto_data_names) + [0] * len(self.crypto_data_names)
+        obs_highs= [1] + [1] * len(self.crypto_data_names) * 6 
+        self.observation_space = spaces.Box(low = np.array(obs_lows), high = np.array(obs_highs))
         # all normalized from -1 to 1                                     
         # balance (pure money) (>= 0, single number)
         # amount owned of each crypto (>= 0, vector)
-        # close price of each crypto (>= 0, vector)
-        # MACD of each crypto (neg or pos, vector)
-        # RSI of each crypto (>= 0, vector)
-        # CCI of each crypto (>= 0, vector)
-        # ADX of each crypto (neg or pos, vector)
-        
+        # close price of each crypto (>= 0, vector, max. val in data 2528.7) 
+        # MACD of each crypto (neg or pos., vector, max. val in data 91.04)
+        # RSI of each crypto (>= 0, vector, max. val in data 100)
+        # CCI of each crypto (neg. or pos., vector, max. val in data 466,67)
+        # ADX of each crypto (>= 0, vector, max. val in data 85.46)
         
         # init used variables, are reset in reset()
         self.current_step = 0
@@ -80,7 +65,7 @@ class CryptoEnv(gym.Env):
         for idx, _ in enumerate(self.crypto_data):
             self.crypto_data[idx].drop(columns=["timestamp","openbtc","lowbtc","highbtc","closebtc"], inplace = True)
             self.crypto_data[idx].drop(columns=["high","low","open","interpolateddata"], inplace = True)
-    
+        
         # some data info 
         if False:
             for crypto_data_idx, _ in enumerate(self.crypto_data):
@@ -112,22 +97,20 @@ class CryptoEnv(gym.Env):
         # performs sells if possible immediately, count all buys together to evaluate if possible 
         for idx, amount in enumerate(action):
             
-            
-            
             # want to sell
             if (amount < 0): 
+                
                 abs_amnt = np.abs(amount)
                 if (self.current_holdings[idx] < abs_amnt):  # less crypto available in holdings than wanted to sell 
                     pass # do not sell and keep balance
                 else: # crypto available
                     self.current_holdings[idx] -= abs_amnt # sell, remove from holdings
                     self.current_balance += (abs_amnt * self.current_observation[1][1][idx] * MAX_PRICE) * (1 - TRANSACTION_PERCENTAGE_COST / 100) # add money to balance, deduct transaction cost; get price from observation
-            
+                    
             # in case of hold do nothing 
             
             # want to buy 
             elif (amount > 0):
-                
                 # make sure that max holding would not be overflowed 
                 if (self.current_holdings[idx] + amount) <= MAX_HOLDING_VAL: 
                     total_buy_price += amount * self.current_observation[1][1][idx] * MAX_PRICE # add price of wanted cryptos to total buy price 
@@ -136,6 +119,7 @@ class CryptoEnv(gym.Env):
         
         # when buys are possible, perform
         if total_buy_price <= self.current_balance:
+
             
             for idx, amount in enumerate(action):
                 
@@ -144,7 +128,7 @@ class CryptoEnv(gym.Env):
                     self.current_balance -= (amount * self.current_observation[1][1][idx] * MAX_PRICE) * (1 + TRANSACTION_PERCENTAGE_COST / 100) # remove money from balance, deduct transaction cost; get price from observation
                     if self.current_balance < 0:
                         self.current_balance = 0 # in case transaction cost was too expensive, clip to 0 
-
+                    
 
         
             
@@ -153,17 +137,7 @@ class CryptoEnv(gym.Env):
         return self.current_balance + np.squeeze(np.dot(self.current_holdings,np.squeeze(self.current_observation[1][1] * MAX_PRICE)))
         
 
-    def step(self, action):
-        
-        # Log
-        if (self.current_step % 100 == 0 and False):
-            clear_output(wait=True)
-            print("Timestep: " + str(self.current_step) + " Datetime: " + str(pd.to_datetime(self.crypto_data[0].loc[self.current_step]['unixtime'],unit='s')))
-            print("Current balance: " + str(self.current_balance))
-            for idx, holding in enumerate(self.current_holdings):
-                print(self.crypto_data_names[idx] + " holding: " + str(holding) + "\t" + self.crypto_data_names[idx] + " price: " + str(self.current_observation[1][1][idx] * MAX_PRICE) + " normalized price: " + str(self.current_observation[1][1][idx]))
-        
-        
+    def step(self, action): 
         
         portfolio_val_before = self._calc_portfolio_value()
         
@@ -290,6 +264,10 @@ class CryptoEnv(gym.Env):
     
     def render(self, mode='human', close=False):
                
-        # Render the environment to the screen
-        pass
-
+        # Log
+        if (self.current_step % 100 == 0):
+            clear_output(wait=True)
+            print("Timestep: " + str(self.current_step) + " Datetime: " + str(pd.to_datetime(self.crypto_data[0].loc[self.current_step]['unixtime'],unit='s')))
+            print("Current balance: " + str(self.current_balance))
+            for idx, holding in enumerate(self.current_holdings):
+                print(self.crypto_data_names[idx] + " holding: " + str(holding) + "\t" + self.crypto_data_names[idx] + " price: " + str(self.current_observation[1][1][idx] * MAX_PRICE) + " normalized price: " + str(self.current_observation[1][1][idx]))
