@@ -81,6 +81,15 @@ class CryptoEnv(gym.Env):
             self.crypto_data[idx].drop(columns=["timestamp","openbtc","lowbtc","highbtc","closebtc"], inplace = True)
             self.crypto_data[idx].drop(columns=["high","low","open","interpolateddata"], inplace = True)
     
+        # some data info 
+        if False:
+            for crypto_data_idx, _ in enumerate(self.crypto_data):
+                print(self.crypto_data_names[crypto_data_idx] + " info:")
+                for column in self.crypto_data[crypto_data_idx]:
+                    print("Column '" + str(column) + "'. Minimum: " + '{:0.2f}'.format(self.crypto_data[crypto_data_idx][column].min()), end="")
+                    print(" Maximum: " + '{:0.2f}'.format(self.crypto_data[crypto_data_idx][column].max()), end="")
+                    print(" HasNaNs: " + str(self.crypto_data[crypto_data_idx][column].isnull().values.any()))
+        
     
     def _perform_action(self,action):
         
