@@ -90,13 +90,13 @@ if __name__ == "__main__":
 
     ENV_ID              = "cryptoenv-v0"
     TARGET_REWARD       = 2500
+    CLIP_PARAM          = 0.2
     
     CRITIC_DISCOUNT     = 0.5
     ENTROPY_BETA        = 0.001
     GAMMA               = 0.99
     GAE_LAMBDA          = 0.95
     LEARNING_RATE       = 1e-4
-    CLIP_PARAM          = 0.2
     
     NUM_PARALLEL        = 4
     EPOCHS              = 6
@@ -104,6 +104,7 @@ if __name__ == "__main__":
     NUM_BATCHES         = 4
     NUM_RUNNER_STEPS    = 10
     NUM_RUNNER_EPISODES = 1
+    CONTINUE_TRAINING   = True
 
 
 
@@ -139,7 +140,11 @@ if __name__ == "__main__":
 
     print("Aggregator built.")
     # get initial agent
-    agent = manager.get_agent()
+    if(CONTINUE_TRAINING):
+        agent = manager.load_model("./modelProgress")
+    else:
+        print("Building new model.")
+        agent = manager.get_agent()
 
 
     rewards = []
@@ -159,15 +164,7 @@ if __name__ == "__main__":
             from_buffer = False
             )
         print("Sampling: DONE")
-        # print("Length of sample: " , len(sample_dict))
-        # print("Keys of sample :", sample_dict.keys())
-        # print("Sample Rewards before processing: ")
-        # print(sample_dict["action"])
-        
-        # Add value of last 'new_state'
-        #TODO: necessary??
         sample_dict['value_estimate'].append(agent.v(np.expand_dims(sample_dict['state_new'][-1],0)))
-        # print(len(sample_dict["value_estimate"]))s
         
         print("GAE: INPROCESS")
         sample_dict['advantage'] = []
@@ -208,8 +205,6 @@ if __name__ == "__main__":
             
                 old_log_prob = tf.cast(log_prob_batch, dtype=tf.float32)
                 new_log_prob, entropy = agent.flowing_log_prob(state_batch, action_batch, True)
-                # print("old_log_prob: ", old_log_prob)
-                # print("new_log_prob: ", new_log_prob)
                 advantage_batch = tf.cast(advantage_batch, dtype=tf.float32)
                 ratio = tf.exp(new_log_prob - old_log_prob)
                 # print("Calculated ratio: ", ratio)
@@ -239,7 +234,6 @@ if __name__ == "__main__":
             losses.append(total_loss) 
             
             manager.set_agent(agent.get_weights())
-            elementNumber += 1
 
 
 
@@ -253,11 +247,6 @@ if __name__ == "__main__":
             )
         print("DONE")
 
-        # manager.test(
-        #     max_steps=1000,
-        #     test_episodes=1,
-        #     render=True
-        #     )
     
         # Update aggregator
         manager.update_aggregator(loss=losses, reward=current_rewards, time=steps)
@@ -269,33 +258,8 @@ if __name__ == "__main__":
 
 
         print("OUTCOME:")
-        # Print progress
-        
-        try:
-            np.mean(losses)
-        except:
-            print("ISSUE with losses")
-            print("Losses: ", losses)        
-            
-            print()
-        try:
-            np.mean(current_rewards)
-        except:
-            print("ISSUE")
-            print("Current Rewards: ", current_rewards)
-        try:
-             avg_reward
-        except:
-            print("ISSUE")
-            
-            print("Average reward: ", avg_reward)
-        try:
-             np.mean(steps)
-        except:
-            print("ISSUE")
-            
-            print("Timesteps: ", steps)    
-            
+        # Print progress   
+           
         print(
             f"      Epoch ::: {e+1}   Loss ::: {np.mean(losses)} avg_current_reward ::: {np.mean(current_rewards)} avg_reward ::: {avg_reward} avg_timesteps ::: {np.mean(steps)}"
             )
@@ -309,7 +273,7 @@ if __name__ == "__main__":
             manager.save_model(saving_path, e, model_name='LunarLanderContinuous')
             break
         print("-------------------------------------------------------------------------------------------------------------------------------------------------------")
-        
+    print()
     print("Finished with optimization.")
     print("Testing optimized agent...")
     manager.test(
@@ -319,4 +283,6 @@ if __name__ == "__main__":
         do_print=True,
         evaluation_measure="time_and_reward",
     )
+    
+    manager.save_model("./modelProgress", EPOCHS, model_name="ppo")
     print("END")

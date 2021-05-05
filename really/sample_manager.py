@@ -442,7 +442,7 @@ class SampleManager:
         time_stamp = datetime.now().strftime("%d-%m-%Y_%I-%M-%S_%p")
         full_path = f"{path}/{model_name}_{epoch}_{time_stamp}"
         agent = self.get_agent()
-        print("saving model...")
+        print("Saving Model...")
         agent.model.save(full_path)
 
     def load_model(self, path, model_name=None):
