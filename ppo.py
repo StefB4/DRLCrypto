@@ -93,18 +93,18 @@ if __name__ == "__main__":
     CLIP_PARAM          = 0.2
     
     CRITIC_DISCOUNT     = 0.5
-    ENTROPY_BETA        = 0.001
+    ENTROPY_BETA        = 0.005
     GAMMA               = 0.99
     GAE_LAMBDA          = 0.95
     LEARNING_RATE       = 1e-4
     
     NUM_PARALLEL        = 4
-    EPOCHS              = 6
+    EPOCHS              = 30
     ELEMENTS_IN_BATCH   = 10
-    NUM_BATCHES         = 4
-    NUM_RUNNER_STEPS    = 10
+    NUM_BATCHES         = 20
+    NUM_RUNNER_STEPS    = 30
     NUM_RUNNER_EPISODES = 1
-    CONTINUE_TRAINING   = True
+    CONTINUE_TRAINING   = False
 
 
 
