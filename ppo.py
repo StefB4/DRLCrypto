@@ -100,8 +100,8 @@ if __name__ == "__main__":
     
     NUM_PARALLEL        = 4
     EPOCHS              = 30
-    ELEMENTS_IN_BATCH   = 10
-    NUM_BATCHES         = 20
+    ELEMENTS_IN_BATCH   = 30
+    NUM_BATCHES         = 200
     NUM_RUNNER_STEPS    = 30
     NUM_RUNNER_EPISODES = 1
     CONTINUE_TRAINING   = False
@@ -272,7 +272,7 @@ if __name__ == "__main__":
             # Save model
             manager.save_model(saving_path, e, model_name='LunarLanderContinuous')
             break
-        print("-------------------------------------------------------------------------------------------------------------------------------------------------------")
+        print("--------------------------------------------------------------------------------------------------------------------------------------------------------------")
     print()
     print("Finished with optimization.")
     print("Testing optimized agent...")
